@@ -1,0 +1,25 @@
+﻿# Virtual Environment
+venv/
+.venv/
+env/
+ENV/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local Databases & Secrets
+*.db
+*.sqlite3
+data/*.db
+.env
+
+# Docker & OS artifacts
+.DS_Store
+Thumbs.db
+*.log

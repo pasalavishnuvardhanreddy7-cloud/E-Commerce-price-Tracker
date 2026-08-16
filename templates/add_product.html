@@ -1,0 +1,34 @@
+﻿{% extends "base.html" %}
+{% block title %}Track New Product{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6 col-md-8">
+        <div class="card p-4">
+            <h3 class="fw-bold mb-3"><i class="bi bi-link-45deg text-primary"></i> Track New Product</h3>
+            <p class="text-muted small">Enter the product URL from books.toscrape.com or standard e-commerce pages.</p>
+            
+            <form method="POST" action="/add">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Product URL</label>
+                    <input type="url" name="url" class="form-control" placeholder="https://books.toscrape.com/catalogue/..." required>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-semibold">Target Price ($)</label>
+                        <input type="number" step="0.01" name="target_price" class="form-control" placeholder="e.g. 45.00">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-semibold">Custom Category</label>
+                        <input type="text" name="category" class="form-control" placeholder="Optional category">
+                    </div>
+                </div>
+                <div class="d-flex justify-content-end gap-2 mt-3">
+                    <a href="/" class="btn btn-light border">Cancel</a>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-download"></i> Fetch & Track</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

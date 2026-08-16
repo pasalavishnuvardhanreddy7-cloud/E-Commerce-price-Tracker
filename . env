@@ -1,0 +1,10 @@
+ FLASK_APP=app.py
+FLASK_ENV=development
+FLASK_DEBUG=1
+SECRET_KEY=dev_secret_key_change_in_production_987654321
+DATABASE_URL=sqlite:///data/price_tracker.db
+MONGO_URI=mongodb://localhost:27017/
+MONGO_DB_NAME=ecommerce_raw_data
+REQUEST_TIMEOUT=10
+USER_AGENT=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
+

@@ -1,0 +1,32 @@
+﻿services:
+  mongodb:
+    image: mongo:7.0
+    container_name: pricepulse_mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=ecommerce_raw_data
+
+  web:
+    build: .
+    container_name: pricepulse_web
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mongodb
+    environment:
+      - DATABASE_URL=sqlite:///data/ecommerce.db
+      - MONGO_URI=mongodb://mongodb:27017/
+      - MONGO_DB_NAME=ecommerce_raw_data
+      - SCRAPE_INTERVAL_HOURS=6
+      - SECRET_KEY=production-secure-secret-key-pricepulse
+    volumes:
+      - sqlite_data:/app/data
+
+volumes:
+  mongo_data:
+  sqlite_data:
