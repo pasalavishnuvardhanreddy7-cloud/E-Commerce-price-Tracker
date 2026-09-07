@@ -1,4 +1,4 @@
-import sys
+﻿import sys
 import os
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -8,4 +8,14 @@ if PROJECT_ROOT not in sys.path:
 
 os.environ["VERCEL"] = "1"
 
-from app import app
+from app import app, db, sql_db
+
+# Ensure SQLite schema exists in /tmp before serving requests
+try:
+    with app.app_context():
+        if hasattr(db, "create_all"):
+            db.create_all()
+        if hasattr(sql_db, "init_db"):
+            sql_db.init_db()
+except Exception as e:
+    print(f"Database pre-init warning: {e}")
