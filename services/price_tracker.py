@@ -5,6 +5,7 @@ from typing import Optional, Dict, Any, List
 from database.sql_database import SQLDatabase
 
 class ObjectDict(dict):
+    """Permits dot access and dictionary key access with fallback for missing template keys."""
     def __getattr__(self, name):
         try:
             return self[name]
@@ -89,7 +90,7 @@ class PriceTrackerService:
         if hasattr(self.sql_db, "get_product_by_id"):
             product = self.sql_db.get_product_by_id(product_id)
 
-        title = getattr(product, "title", None) or (product.get("title") if isinstance(product, dict) else "AAPL Stock / Asset")
+        title = getattr(product, "title", None) or (product.get("title") if isinstance(product, dict) else "Tracked Asset")
         url = getattr(product, "url", None) or (product.get("url") if isinstance(product, dict) else "https://finance.yahoo.com/quote/AAPL")
         target_price = getattr(product, "target_price", None) or (product.get("target_price") if isinstance(product, dict) else 200.0)
 
@@ -123,6 +124,39 @@ class PriceTrackerService:
         now = datetime.now()
         thirty_days_ago = now - timedelta(days=30)
 
+        # Recommendation logic
+        target_val = float(target_price) if target_price else current * 0.95
+        if current <= target_val:
+            action = "BUY_NOW"
+            action_text = "Target Met - Buy Now!"
+            reason = f"Current price (${current:.2f}) has dropped to or below your target (${target_val:.2f})."
+        elif current < avg_p:
+            action = "CONSIDER"
+            action_text = "Good Deal - Consider Buying"
+            reason = f"Price is lower than the historical average (${avg_p:.2f})."
+        else:
+            action = "WAIT"
+            action_text = "Wait for Lower Price"
+            reason = f"Current price is near historical highs. Wait for market correction."
+
+        recommendation = ObjectDict({
+            "action": action,
+            "action_text": action_text,
+            "reason": reason,
+            "confidence": 85,
+            "savings_potential": max(0, round(max_p - current, 2)),
+            "target_gap": round(current - target_val, 2)
+        })
+
+        stats = ObjectDict({
+            "current_price": round(current, 2),
+            "min_price": round(min_p, 2),
+            "max_price": round(max_p, 2),
+            "avg_price": round(avg_p, 2),
+            "total_records": len(price_history),
+            "price_drop_percentage": round(((max_p - current) / max_p) * 100, 2) if max_p > 0 else 0
+        })
+
         return ObjectDict({
             "product": ObjectDict({
                 "id": product_id,
@@ -131,15 +165,19 @@ class PriceTrackerService:
                 "target_price": target_price,
                 "created_at": now
             }),
+            "stats": stats,
+            "recommendation": recommendation,
             "current_price": round(current, 2),
             "min_price": round(min_p, 2),
             "max_price": round(max_p, 2),
             "avg_price": round(avg_p, 2),
             "price_history": price_history,
             "target_price": target_price,
-            "price_drop_percentage": round(((max_p - current) / max_p) * 100, 2) if max_p > 0 else 0,
+            "price_drop_percentage": stats.price_drop_percentage,
             "in_stock": True,
             "rating": 4.5,
+            "chart_labels": [p["created_at"].strftime("%b %d") if hasattr(p["created_at"], "strftime") else str(p["created_at"]) for p in price_history],
+            "chart_prices": [p["price"] for p in price_history],
             "filter_params": ObjectDict({
                 "start_date": thirty_days_ago.strftime("%Y-%m-%d"),
                 "end_date": now.strftime("%Y-%m-%d")
