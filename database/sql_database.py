@@ -1,5 +1,5 @@
 ﻿"""
-Database Layer: Multi-Tenant Schema with Eager Loading
+Database Layer: Multi-Tenant Schema with Vercel Serverless Fallback
 """
 
 import os
@@ -41,7 +41,6 @@ class ProductModel(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     user = relationship("UserModel", back_populates="products")
-    # lazy="joined" prevents DetachedInstanceError when accessing product.category
     category = relationship("CategoryModel", back_populates="products", lazy="joined")
     price_history = relationship("PriceHistoryModel", back_populates="product", cascade="all, delete-orphan")
 
@@ -71,8 +70,21 @@ class ScrapeLogModel(Base):
 
 class SQLDatabase:
     def __init__(self, db_url: Optional[str] = None) -> None:
-        self.db_url = db_url or os.getenv("DATABASE_URL", "sqlite:///data/price_tracker.db")
-        os.makedirs(os.path.dirname(self.db_url.replace("sqlite:///", "")) or ".", exist_ok=True)
+        if os.getenv("VERCEL"):
+            # Serverless environment requires writable /tmp
+            self.db_url = os.getenv("DATABASE_URL") or "sqlite:////tmp/price_tracker.db"
+        else:
+            self.db_url = db_url or os.getenv("DATABASE_URL", "sqlite:///data/price_tracker.db")
+
+        if "sqlite" in self.db_url:
+            raw_path = self.db_url.replace("sqlite:////", "/").replace("sqlite:///", "")
+            folder = os.path.dirname(raw_path)
+            if folder:
+                try:
+                    os.makedirs(folder, exist_ok=True)
+                except OSError:
+                    pass
+
         self.engine = create_engine(
             self.db_url,
             connect_args={"check_same_thread": False} if "sqlite" in self.db_url else {}
@@ -83,6 +95,7 @@ class SQLDatabase:
             expire_on_commit=False,
             bind=self.engine
         )
+        self.init_db()
 
     def init_db(self) -> None:
         Base.metadata.create_all(bind=self.engine)
@@ -125,7 +138,6 @@ class SQLDatabase:
             session.add(product)
             session.commit()
             session.refresh(product)
-            # Access category once inside the active session so it is cached on the object
             _ = product.category
             return product
 
