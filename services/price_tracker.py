@@ -9,7 +9,7 @@ class ObjectDict(dict):
         try:
             return self[name]
         except KeyError:
-            raise AttributeError(name)
+            return ""
     def __setattr__(self, name, value):
         self[name] = value
 
@@ -120,13 +120,16 @@ class PriceTrackerService:
         max_p = max(prices)
         avg_p = sum(prices) / len(prices)
 
+        now = datetime.now()
+        thirty_days_ago = now - timedelta(days=30)
+
         return ObjectDict({
             "product": ObjectDict({
                 "id": product_id,
                 "title": title,
                 "url": url,
                 "target_price": target_price,
-                "created_at": datetime.now()
+                "created_at": now
             }),
             "current_price": round(current, 2),
             "min_price": round(min_p, 2),
@@ -136,7 +139,11 @@ class PriceTrackerService:
             "target_price": target_price,
             "price_drop_percentage": round(((max_p - current) / max_p) * 100, 2) if max_p > 0 else 0,
             "in_stock": True,
-            "rating": 4.5
+            "rating": 4.5,
+            "filter_params": ObjectDict({
+                "start_date": thirty_days_ago.strftime("%Y-%m-%d"),
+                "end_date": now.strftime("%Y-%m-%d")
+            })
         })
 
     def _scrape_url(self, url: str) -> Dict[str, Any]:
