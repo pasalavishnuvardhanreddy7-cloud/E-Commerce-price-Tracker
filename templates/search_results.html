@@ -1,0 +1,59 @@
+﻿{% extends "base.html" %}
+{% block title %}Search Results — {{ query }}{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <a href="/" class="btn btn-sm btn-outline-secondary mb-3"><i class="bi bi-arrow-left"></i> Back to Dashboard</a>
+    <h3 class="fw-bold">Search Result for: <span class="text-primary">"{{ query }}"</span></h3>
+</div>
+
+{% if result %}
+<div class="card shadow-sm border-0 p-4 mb-4">
+    <div class="row align-items-center">
+        <div class="col-md-8">
+            <span class="badge bg-primary mb-2">{{ result.category }}</span>
+            <span class="badge bg-dark mb-2">{{ result.type.replace('_', ' ') }}</span>
+            <h2 class="fw-bold">{{ result.title }}</h2>
+            <p class="text-muted mt-2">{{ result.description }}</p>
+            
+            <div class="d-flex align-items-center gap-4 mt-3">
+                <div>
+                    <small class="text-muted d-block">Live Market Price</small>
+                    <span class="fs-2 fw-bold text-success">${{ "%.2f"|format(result.price) }}</span>
+                </div>
+                {% if result.previous_close %}
+                <div>
+                    <small class="text-muted d-block">Prev Close</small>
+                    <span class="fs-4 fw-semibold text-muted">${{ "%.2f"|format(result.previous_close) }}</span>
+                </div>
+                {% endif %}
+                <div>
+                    <small class="text-muted d-block">Status</small>
+                    <span class="badge bg-success">Active Feed</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 border-start ps-md-4 mt-4 mt-md-0">
+            <h5 class="fw-bold mb-3">Track This Item</h5>
+            <form method="POST" action="/add">
+                <input type="hidden" name="url" value="{{ result.url }}">
+                <input type="hidden" name="category" value="{{ result.category }}">
+                
+                <div class="mb-3">
+                    <label class="form-label small fw-bold">Set Target Alert Price ($)</label>
+                    <input type="number" step="0.01" name="target_price" class="form-control form-control-sm" placeholder="e.g. {{ (result.price * 0.95)|round(2) }}">
+                </div>
+                <button type="submit" class="btn btn-primary w-100 fw-bold">
+                    <i class="bi bi-bookmark-plus"></i> Add to Active Tracking
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-warning p-4 text-center">
+    <h4>No results found for "{{ query }}"</h4>
+    <p class="mb-0">Try searching for tickers like <strong>Gold</strong>, <strong>AAPL</strong>, <strong>NVDA</strong>, <strong>GLD</strong>, or product names like <strong>Iron</strong>.</p>
+</div>
+{% endif %}
+{% endblock %}

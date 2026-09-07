@@ -1,13 +1,14 @@
 ﻿"""
-Orchestration Service Layer
-Coordinates data ingestion, database synchronization, alerts, and analytics.
+Orchestration Service Layer: Multi-Tenant Support
 """
 
 import time
 import logging
-from typing import Dict, Any, List, Optional
+from datetime import datetime, timezone
+from typing import Dict, Any, Optional
+import yfinance as yf
 
-from database.sql_database import SQLDatabase, ProductModel
+from database.sql_database import SQLDatabase, ProductModel, PriceHistoryModel
 from database.mongo_database import MongoDatabase
 from scraper.product_scraper import ProductScraper
 from models.product import Product, PriceRecord
@@ -19,8 +20,6 @@ logger = logging.getLogger(__name__)
 
 
 class PriceTrackerService:
-    """End-to-end service coordinating scraping, persistence, and analytics."""
-
     def __init__(
         self,
         sql_db: Optional[SQLDatabase] = None,
@@ -34,26 +33,89 @@ class PriceTrackerService:
         self.scraper = scraper or ProductScraper()
         self.notifier = notifier or NotificationService()
 
+    def _extract_ticker_symbol(self, url: str) -> Optional[str]:
+        if "finance.yahoo.com/quote/" in url:
+            return url.split("quote/")[-1].strip("/").split("?")[0].upper()
+        return None
+
+    def _fetch_financial_price(self, url: str) -> Optional[Dict[str, Any]]:
+        symbol = self._extract_ticker_symbol(url)
+        if not symbol:
+            return None
+
+        try:
+            ticker = yf.Ticker(symbol)
+            fast_info = ticker.fast_info
+            price = fast_info.last_price
+            if price and price > 0:
+                info = ticker.info or {}
+                title = info.get("shortName") or info.get("longName") or f"{symbol} Asset"
+                return {
+                    "symbol": symbol,
+                    "title": title,
+                    "price": round(float(price), 2),
+                    "in_stock": True,
+                    "rating": 5.0,
+                    "category": "Cryptocurrency" if "-USD" in symbol else "Stock & Commodities",
+                    "raw_data": {"symbol": symbol, "market_price": price},
+                    "html_snapshot": f"<div>Ticker: {symbol} - Price: {price}</div>",
+                }
+        except Exception as e:
+            logger.error(f"Financial fetch error for {symbol}: {e}")
+        return None
+
+    def _backfill_ticker_history(self, product_id: int, symbol: str, period: str = "2y") -> None:
+        try:
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(period=period, interval="1d")
+            if hist.empty:
+                return
+
+            with self.sql_db.SessionLocal() as session:
+                session.query(PriceHistoryModel).filter_by(product_id=product_id).delete()
+                step = 1 if len(hist) < 90 else (3 if len(hist) < 365 else 7)
+                sampled_hist = hist.iloc[::step]
+
+                for index_dt, row in sampled_hist.iterrows():
+                    close_price = round(float(row["Close"]), 2)
+                    ts = index_dt.to_pydatetime()
+                    if ts.tzinfo is None:
+                        ts = ts.replace(tzinfo=timezone.utc)
+
+                    session.add(
+                        PriceHistoryModel(
+                            product_id=product_id,
+                            price=close_price,
+                            in_stock=True,
+                            rating=5.0,
+                            scraped_at=ts,
+                        )
+                    )
+                session.commit()
+        except Exception as e:
+            logger.error(f"Failed to backfill history for {symbol}: {e}")
+
     def add_product_to_track(
         self,
         url: str,
         target_price: Optional[float] = None,
         category: Optional[str] = None,
+        user_id: Optional[int] = None,
     ) -> Optional[Product]:
-        scraped_data = self.scraper.scrape_product(url)
+        financial_data = self._fetch_financial_price(url)
+        scraped_data = financial_data or self.scraper.scrape_product(url)
+
         if not scraped_data:
-            logger.error(f"Failed to scrape product metadata for initial ingestion: {url}")
             return None
 
-        # 1. Save product to SQL
         db_product = self.sql_db.add_product(
             title=scraped_data["title"],
             url=url,
             target_price=target_price,
             category_name=category or scraped_data.get("category", "General"),
+            user_id=user_id,
         )
 
-        # 2. Add first price checkpoint
         db_record = self.sql_db.add_price_record(
             product_id=db_product.id,
             price=scraped_data["price"],
@@ -61,7 +123,6 @@ class PriceTrackerService:
             rating=scraped_data.get("rating"),
         )
 
-        # 3. Store raw unstructured payload in MongoDB
         self.mongo_db.insert_raw_scrape(
             product_id=db_product.id,
             url=url,
@@ -70,32 +131,15 @@ class PriceTrackerService:
             html_snapshot=scraped_data.get("html_snapshot"),
         )
 
-        # 4. Check for immediate price drop alert
-        if target_price and scraped_data["price"] <= target_price:
-            self.notifier.send_price_drop_alert(
-                product_title=db_product.title,
-                current_price=scraped_data["price"],
-                target_price=target_price,
-                product_url=url,
-            )
+        if financial_data:
+            self._backfill_ticker_history(db_product.id, financial_data["symbol"], period="2y")
 
-        # 5. Map to domain entity
         product = Product(
             id=db_product.id,
             title=db_product.title,
             url=db_product.url,
             category=category or scraped_data.get("category"),
             target_price=target_price,
-        )
-        product.add_price_record(
-            PriceRecord(
-                id=db_record.id,
-                product_id=db_product.id,
-                price=db_record.price,
-                in_stock=db_record.in_stock,
-                rating=db_record.rating,
-                scraped_at=db_record.scraped_at,
-            )
         )
         return product
 
@@ -106,7 +150,7 @@ class PriceTrackerService:
         alerts = []
 
         for prod in products:
-            scraped = self.scraper.scrape_product(prod.url)
+            scraped = self._fetch_financial_price(prod.url) or self.scraper.scrape_product(prod.url)
             if scraped:
                 self.sql_db.add_price_record(
                     product_id=prod.id,
@@ -114,22 +158,8 @@ class PriceTrackerService:
                     in_stock=scraped["in_stock"],
                     rating=scraped.get("rating"),
                 )
-                self.mongo_db.insert_raw_scrape(
-                    product_id=prod.id,
-                    url=prod.url,
-                    http_status=200,
-                    raw_data=scraped.get("raw_data", {}),
-                    html_snapshot=scraped.get("html_snapshot"),
-                )
                 success_count += 1
-
                 if prod.target_price and scraped["price"] <= prod.target_price:
-                    self.notifier.send_price_drop_alert(
-                        product_title=prod.title,
-                        current_price=scraped["price"],
-                        target_price=prod.target_price,
-                        product_url=prod.url,
-                    )
                     alerts.append({
                         "product_id": prod.id,
                         "title": prod.title,
@@ -153,48 +183,59 @@ class PriceTrackerService:
             "alerts": alerts,
         }
 
-    def get_product_details_with_analytics(self, product_id: int) -> Optional[Dict[str, Any]]:
+    def get_product_details_with_analytics(
+        self,
+        product_id: int,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        interval: str = "days",
+    ) -> Optional[Dict[str, Any]]:
         db_prod = self.sql_db.get_product_by_id(product_id)
         if not db_prod:
             return None
 
-        title = db_prod.title
-        url = db_prod.url
-        target_price = db_prod.target_price
-        is_active = db_prod.is_active
-        category_name = db_prod.category.name if db_prod.category else "Uncategorized"
+        history_records = self.sql_db.get_price_history(product_id, limit=3000)
 
-        history_records = self.sql_db.get_price_history(product_id)
-        dict_records = [
-            {
+        dict_records = []
+        start_dt = datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc) if start_date else None
+        end_dt = datetime.fromisoformat(end_date).replace(tzinfo=timezone.utc) if end_date else None
+
+        for r in reversed(history_records):
+            rec_dt = r.scraped_at if r.scraped_at.tzinfo else r.scraped_at.replace(tzinfo=timezone.utc)
+            if start_dt and rec_dt < start_dt:
+                continue
+            if end_dt and rec_dt > end_dt:
+                continue
+
+            dict_records.append({
                 "id": r.id,
                 "price": r.price,
                 "in_stock": r.in_stock,
                 "rating": r.rating,
-                "scraped_at": r.scraped_at.isoformat() if r.scraped_at else "",
-            }
-            for r in reversed(history_records)
-        ]
+                "scraped_at": rec_dt.isoformat(),
+            })
 
         analyzer = PriceAnalyzer(dict_records)
         stats = analyzer.compute_summary_statistics()
         percentiles = analyzer.compute_percentiles()
-        recommendation = analyzer.generate_recommendation(target_price=target_price)
+        recommendation = analyzer.generate_recommendation(target_price=db_prod.target_price)
 
         history_chart = ChartGenerator.generate_price_history_chart(
             records=dict_records,
-            product_title=title,
-            target_price=target_price,
+            product_title=db_prod.title,
+            target_price=db_prod.target_price,
+            interval=interval,
         )
 
         return {
             "product": {
                 "id": product_id,
-                "title": title,
-                "url": url,
-                "target_price": target_price,
-                "category": category_name,
-                "is_active": is_active,
+                "title": db_prod.title,
+                "url": db_prod.url,
+                "target_price": db_prod.target_price,
+                "category": db_prod.category.name if db_prod.category else "Uncategorized",
+                "is_active": db_prod.is_active,
+                "user_id": db_prod.user_id,
             },
             "history": dict_records,
             "statistics": stats,
@@ -202,5 +243,10 @@ class PriceTrackerService:
             "recommendation": recommendation,
             "charts": {
                 "history_chart": history_chart,
+            },
+            "filter_params": {
+                "start_date": start_date or "",
+                "end_date": end_date or "",
+                "interval": interval,
             },
         }

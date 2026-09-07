@@ -1,0 +1,29 @@
+﻿{% extends "base.html" %}
+{% block title %}Welcome to PriceTracker.com{% endblock %}
+{% block content %}
+<div class="row align-items-center py-5">
+    <div class="col-lg-7">
+        <span class="badge bg-primary bg-opacity-10 text-primary fw-bold px-3 py-2 mb-3">Multi-Asset Tracking Engine</span>
+        <h1 class="display-4 fw-bold lh-sm mb-3">Track Stock Market, Gold, & E-Commerce Prices In One Place.</h1>
+        <p class="lead text-muted mb-4">
+            Build your private portfolio watchlist and retail price tracker. Set price targets and receive instant alerts when assets drop.
+        </p>
+        <div class="d-flex gap-3">
+            <a href="/login" class="btn btn-primary btn-lg px-4 fw-bold">
+                <i class="bi bi-box-arrow-in-right"></i> Sign In with Email / Google
+            </a>
+        </div>
+    </div>
+    <div class="col-lg-5 text-center mt-5 mt-lg-0">
+        <div class="card shadow-lg border-0 p-4 bg-dark text-white rounded-4">
+            <h5 class="fw-bold mb-3"><i class="bi bi-shield-lock-fill text-primary"></i> Private User Workspace</h5>
+            <p class="small text-secondary mb-4">Every user gets an isolated tracking list. Items you track are linked exclusively to your account or verified email.</p>
+            <div class="p-3 bg-secondary bg-opacity-25 rounded text-start small font-monospace">
+                ✓ User-specific SQLite Watchlist<br>
+                ✓ Historical Backfill on Add (BTC, NVDA, Gold)<br>
+                ✓ Personalized Price Drop Thresholds
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

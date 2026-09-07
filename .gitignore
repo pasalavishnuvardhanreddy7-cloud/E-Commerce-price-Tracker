@@ -25,3 +25,18 @@ Thumbs.db
 *.log
 
 *.pdf
+# Virtual Environment
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Local Databases
+*.db
+data/*.db
+data/pricetracker.db
+data/price_tracker.db
+
+# Secrets & Environment
+.env
+instance/

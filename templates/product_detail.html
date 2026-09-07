@@ -1,17 +1,12 @@
 ﻿{% extends "base.html" %}
 {% block title %}{{ product.title }}{% endblock %}
-
 {% block content %}
 <div class="mb-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <a href="/" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back to Dashboard</a>
         <div class="d-flex gap-2">
-            <a href="/product/{{ product.id }}/export/csv" class="btn btn-sm btn-outline-success">
-                <i class="bi bi-file-earmark-spreadsheet"></i> Export CSV
-            </a>
-            <a href="/api/products/{{ product.id }}" target="_blank" class="btn btn-sm btn-outline-info">
-                <i class="bi bi-code-slash"></i> JSON API
-            </a>
+            <a href="/product/{{ product.id }}/export/csv" class="btn btn-sm btn-outline-success"><i class="bi bi-file-earmark-spreadsheet"></i> Export CSV</a>
+            <a href="/api/products/{{ product.id }}" target="_blank" class="btn btn-sm btn-outline-info"><i class="bi bi-code-slash"></i> JSON API</a>
             <form method="POST" action="/product/{{ product.id }}/toggle-status" class="d-inline">
                 <button type="submit" class="btn btn-sm {% if product.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}">
                     <i class="bi {% if product.is_active %}bi-pause-circle{% else %}bi-play-circle{% endif %}"></i>
@@ -20,20 +15,45 @@
             </form>
         </div>
     </div>
-    
-    <div class="d-flex justify-content-between align-items-start">
-        <div>
-            <span class="badge bg-secondary mb-2">{{ product.category }}</span>
-            {% if not product.is_active %}
-                <span class="badge bg-warning text-dark mb-2">Paused</span>
-            {% endif %}
-            <h2 class="fw-bold">{{ product.title }}</h2>
-        </div>
-        <a href="{{ product.url }}" target="_blank" class="btn btn-outline-primary"><i class="bi bi-box-arrow-up-right"></i> Open Store Link</a>
-    </div>
+    <span class="badge bg-secondary mb-2">{{ product.category }}</span>
+    <h2 class="fw-bold">{{ product.title }}</h2>
 </div>
 
-<!-- Recommendation & Key Stats Card -->
+<!-- Date Filter & Interval Selector Card -->
+<div class="card mb-4 p-3 shadow-sm bg-light">
+    <form method="GET" action="/product/{{ product.id }}" id="filterForm">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label fw-bold small"><i class="bi bi-calendar-event"></i> Start Date</label>
+                <input type="date" name="start_date" id="startDateInput" class="form-control form-control-sm" value="{{ filter_params.start_date }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold small"><i class="bi bi-calendar2-check"></i> End Date</label>
+                <input type="date" name="end_date" id="endDateInput" class="form-control form-control-sm" value="{{ filter_params.end_date }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-bold small"><i class="bi bi-clock-history"></i> Interval</label>
+                <select name="interval" class="form-select form-select-sm">
+                    <option value="days" {% if filter_params.interval == 'days' %}selected{% endif %}>Days</option>
+                    <option value="weeks" {% if filter_params.interval == 'weeks' %}selected{% endif %}>Weeks</option>
+                    <option value="months" {% if filter_params.interval == 'months' %}selected{% endif %}>Months</option>
+                    <option value="years" {% if filter_params.interval == 'years' %}selected{% endif %}>Years</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-sm btn-primary flex-grow-1"><i class="bi bi-funnel"></i> Apply Filter</button>
+                <a href="/product/{{ product.id }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+            </div>
+        </div>
+        <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" id="toPresentCheck" onchange="togglePresentDate(this)">
+            <label class="form-check-label small text-muted" for="toPresentCheck">
+                Option 2: Filter from Start Date to <strong>Present Date (Today)</strong>
+            </label>
+        </div>
+    </form>
+</div>
+
 <div class="row g-3 mb-4">
     <div class="col-md-4">
         <div class="card p-3 h-100 border-start border-4 border-{% if recommendation.action == 'BUY_NOW' %}success{% elif recommendation.action == 'CONSIDER' %}warning{% else %}secondary{% endif %}">
@@ -47,41 +67,27 @@
     <div class="col-md-8">
         <div class="card p-3 h-100">
             <div class="row text-center my-auto">
-                <div class="col-3">
-                    <small class="text-muted d-block">Current</small>
-                    <span class="fs-4 fw-bold text-primary">${{ statistics.current_price or 'N/A' }}</span>
-                </div>
-                <div class="col-3">
-                    <small class="text-muted d-block">Min</small>
-                    <span class="fs-4 fw-bold text-success">${{ statistics.min_price or 'N/A' }}</span>
-                </div>
-                <div class="col-3">
-                    <small class="text-muted d-block">Mean</small>
-                    <span class="fs-4 fw-bold text-muted">${{ statistics.mean_price or 'N/A' }}</span>
-                </div>
-                <div class="col-3">
-                    <small class="text-muted d-block">Max</small>
-                    <span class="fs-4 fw-bold text-danger">${{ statistics.max_price or 'N/A' }}</span>
-                </div>
+                <div class="col-3"><small class="text-muted d-block">Current</small><span class="fs-4 fw-bold text-primary">${{ statistics.current_price or 'N/A' }}</span></div>
+                <div class="col-3"><small class="text-muted d-block">Min</small><span class="fs-4 fw-bold text-success">${{ statistics.min_price or 'N/A' }}</span></div>
+                <div class="col-3"><small class="text-muted d-block">Mean</small><span class="fs-4 fw-bold text-muted">${{ statistics.mean_price or 'N/A' }}</span></div>
+                <div class="col-3"><small class="text-muted d-block">Max</small><span class="fs-4 fw-bold text-danger">${{ statistics.max_price or 'N/A' }}</span></div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Visualizations -->
 {% if charts.history_chart %}
-<div class="card mb-4 p-3">
+<div class="card mb-4 p-3 shadow-sm">
     <div class="card-body text-center">
         <img src="{{ charts.history_chart }}" class="img-fluid rounded" alt="Price Trendline Chart">
     </div>
 </div>
 {% endif %}
 
-<!-- History Table -->
-<div class="card">
+<div class="card shadow-sm">
     <div class="card-header bg-white fw-bold py-3 d-flex justify-content-between align-items-center">
-        <span>Price Observation Log</span>
-        <a href="/product/{{ product.id }}/export/csv" class="btn btn-sm btn-light border"><i class="bi bi-download"></i> Download Data</a>
+        <span>Filtered Price Observation Log ({{ history|length }} points)</span>
+        <a href="/product/{{ product.id }}/export/csv" class="btn btn-sm btn-light border"><i class="bi bi-download"></i> Download CSV</a>
     </div>
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
@@ -99,11 +105,7 @@
                     <td>{{ row.scraped_at[:19].replace('T', ' ') }}</td>
                     <td class="fw-bold text-primary">${{ "%.2f"|format(row.price) }}</td>
                     <td>
-                        {% if row.in_stock %}
-                            <span class="badge bg-success">In Stock</span>
-                        {% else %}
-                            <span class="badge bg-danger">Out of Stock</span>
-                        {% endif %}
+                        {% if row.in_stock %}<span class="badge bg-success">In Stock</span>{% else %}<span class="badge bg-danger">Out of Stock</span>{% endif %}
                     </td>
                     <td>{{ row.rating or 'N/A' }} &#9733;</td>
                 </tr>
@@ -112,4 +114,17 @@
         </table>
     </div>
 </div>
+
+<script>
+function togglePresentDate(checkbox) {
+    const endDateInput = document.getElementById("endDateInput");
+    if (checkbox.checked) {
+        const today = new Date().toISOString().split('T')[0];
+        endDateInput.value = today;
+        endDateInput.readOnly = true;
+    } else {
+        endDateInput.readOnly = false;
+    }
+}
+</script>
 {% endblock %}
