@@ -9,3 +9,10 @@ if PROJECT_ROOT not in sys.path:
 os.environ["VERCEL"] = "1"
 
 from app import app
+
+# WSGI wrapper to guarantee root path routing works uniformly
+def handler(environ, start_response):
+    path = environ.get('PATH_INFO', '')
+    if path.startswith('/api/index'):
+        environ['PATH_INFO'] = path.replace('/api/index', '') or '/'
+    return app(environ, start_response)
