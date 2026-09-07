@@ -21,13 +21,17 @@ class PriceTrackerService:
             except Exception:
                 self.mongo_collection = None
 
+    def add_product_to_track(self, url: str, target_price: Optional[float] = None, category_name: Optional[str] = None, user_id: Optional[int] = None, **kwargs) -> Optional[Dict[str, Any]]:
+        """Handles add_product calls from app.py"""
+        return self.track_product_by_url(url=url, target_price=target_price, category_name=category_name, user_id=user_id)
+
     def track_product_by_url(self, url: str, target_price: Optional[float] = None, category_name: Optional[str] = None, user_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
         product_data = self._scrape_url(url)
         if not product_data:
             return None
 
         product = self.sql_db.add_product(
-            title=product_data["title"],
+            title=product_data.get("title", "Tracked Item"),
             url=url,
             target_price=target_price,
             category_name=category_name,
