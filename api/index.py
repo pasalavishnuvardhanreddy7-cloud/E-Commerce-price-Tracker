@@ -1,10 +1,11 @@
 import sys
 import os
 
-# Add root directory to sys.path so imports resolve
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+os.environ["VERCEL"] = "1"
 
 from app import app
-
-# Vercel needs the WSGI callable named 'app'
-app = app

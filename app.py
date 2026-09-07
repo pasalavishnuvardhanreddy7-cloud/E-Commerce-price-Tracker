@@ -1,4 +1,4 @@
-﻿import io
+import io
 import csv
 import os
 from functools import wraps
@@ -32,7 +32,11 @@ scraper = ProductScraper()
 service = PriceTrackerService(sql_db=sql_db, mongo_db=mongo_db, scraper=scraper)
 
 scheduler = PriceTrackerScheduler(service=service)
-scheduler.start()
+if not os.getenv('VERCEL'):
+    try:
+        scheduler.start()
+    except Exception:
+        pass
 
 
 def login_required(f):
