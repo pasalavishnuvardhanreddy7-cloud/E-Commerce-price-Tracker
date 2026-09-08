@@ -165,7 +165,7 @@ class PriceTrackerService:
                 "target_price": target_price,
                 "created_at": now
             }),
-            "stats": stats,
+            "statistics": stats,
             "recommendation": recommendation,
             "current_price": round(current, 2),
             "min_price": round(min_p, 2),
